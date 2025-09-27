@@ -1,0 +1,5 @@
+{
+  "name": "React Web Piano",
+  "description": "A simple, elegant, and interactive web piano built with React and TypeScript. Click the keys from C3 to E5 to play musical notes, powered by the Web Audio API for realistic sound generation.",
+  "requestFramePermissions": []
+}
