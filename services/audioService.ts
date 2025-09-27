@@ -1,4 +1,3 @@
-
 let audioContext: AudioContext | null = null;
 
 const getAudioContext = (): AudioContext => {
@@ -14,23 +13,48 @@ export const playNote = (frequency: number) => {
     if (context.state === 'suspended') {
       context.resume();
     }
-    
-    const oscillator = context.createOscillator();
-    const gainNode = context.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(context.destination);
-
-    oscillator.type = 'triangle'; // A softer, more pleasant tone than 'sine'
-    oscillator.frequency.setValueAtTime(frequency, context.currentTime);
 
     const now = context.currentTime;
-    gainNode.gain.setValueAtTime(0, now);
-    gainNode.gain.linearRampToValueAtTime(0.5, now + 0.01); // Quick attack
-    gainNode.gain.linearRampToValueAtTime(0, now + 0.75); // Slower decay for a pleasant sound
+    
+    // Master gain node for the overall envelope
+    const masterGain = context.createGain();
+    masterGain.connect(context.destination);
 
-    oscillator.start(now);
-    oscillator.stop(now + 1); // Clean up the oscillator after 1 second
+    // A more piano-like ADSR envelope. The peak volume is masterGain * sum of individual harmonic gains.
+    masterGain.gain.setValueAtTime(0, now);
+    masterGain.gain.linearRampToValueAtTime(0.4, now + 0.01); // Sharp attack
+    // Exponential decay to simulate the note ringing out
+    masterGain.gain.setTargetAtTime(0, now + 0.02, 0.4); 
+
+    const totalDuration = 2.5; // Clean up oscillators after 2.5 seconds
+
+    // Harmonics to create a richer, more piano-like tone using additive synthesis
+    const harmonics = [
+      { type: 'triangle', mul: 1, gain: 0.5 },   // Fundamental
+      { type: 'sine', mul: 2, gain: 0.25 },    // Octave
+      { type: 'sine', mul: 3, gain: 0.15 },    // Fifth above octave
+      { type: 'sine', mul: 4, gain: 0.1 },     // Double octave
+    ] as const;
+
+    harmonics.forEach(harmonic => {
+      const oscillator = context.createOscillator();
+      const oscGain = context.createGain();
+      
+      oscillator.type = harmonic.type;
+      // Set frequency for each harmonic
+      oscillator.frequency.setValueAtTime(frequency * harmonic.mul, now);
+      
+      // Set individual gain for each harmonic
+      oscGain.gain.setValueAtTime(harmonic.gain, now);
+
+      // Route the sound
+      oscillator.connect(oscGain);
+      oscGain.connect(masterGain);
+      
+      oscillator.start(now);
+      oscillator.stop(now + totalDuration);
+    });
+
   } catch (e) {
     console.error("Web Audio API is not supported in this browser or there was an error.", e);
   }
